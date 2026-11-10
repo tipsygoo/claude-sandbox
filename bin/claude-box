@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# claude-box: run a rootless, locked-down container with the current
+# directory mounted as the only visible project.
+#
+# Usage:
+#   claude-box                  open a shell in the container
+#   claude-box claude           run Claude Code
+#   claude-box claude -r        run Claude Code and pick a session to resume
+set -euo pipefail
+
+IMAGE="localhost/claude-box:dev"
+PROJECT="$(pwd -P)"
+NAME="$(basename "$PROJECT")"
+
+# Refuse to mount broad folders. The whole point is to expose one project.
+case "$PROJECT" in
+  "$HOME"|/|/home|/etc|/usr|/var|/root)
+    echo "Refusing to mount $PROJECT. cd into a project folder first." >&2
+    exit 1
+    ;;
+esac
+
+# Container names only allow letters, digits, underscore, dot and dash.
+SAFE_NAME="${NAME//[^a-zA-Z0-9_.-]/_}"
+
+exec podman run --rm -it \
+  --name "claude-box-${SAFE_NAME}-$$" \
+  --userns=keep-id:uid=1000,gid=1000 \
+  --cap-drop=all \
+  --security-opt=no-new-privileges \
+  --pids-limit=512 \
+  --memory=4g \
+  --tmpfs /tmp:rw,size=512m \
+  -e TERM \
+  -v claude-state:/home/claude/.claude \
+  -v "$PROJECT":"/workspace/$NAME" \
+  --workdir "/workspace/$NAME" \
+  "$IMAGE" "$@"
