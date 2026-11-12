@@ -1,0 +1,12 @@
+# Domains the agent may reach over HTTPS. One per line.
+# "example.com" matches only that name.
+# ".example.com" (leading dot) matches example.com AND all its subdomains.
+
+# Claude Code essentials
+api.anthropic.com
+platform.claude.com
+claude.ai
+
+# Documentation sites (uncomment or add the ones you use)
+docs.python.org
+# docs.podman.io

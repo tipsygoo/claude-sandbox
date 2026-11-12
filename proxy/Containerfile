@@ -1,0 +1,16 @@
+FROM docker.io/library/ubuntu:26.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends squid \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY squid.conf /etc/squid/squid.conf
+
+# Squid runs as the unprivileged "proxy" user and needs a writable log folder
+RUN mkdir -p /var/log/squid && chown -R proxy:proxy /var/log/squid
+
+USER proxy
+EXPOSE 3128
+# -N = stay in the foreground, so the container keeps running
+CMD ["squid", "-N", "-f", "/etc/squid/squid.conf"]
