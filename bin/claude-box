@@ -3,12 +3,20 @@
 # directory mounted as the only visible project.
 #
 # Usage:
-#   claude-box                  open a shell in the container
-#   claude-box claude           run Claude Code
-#   claude-box claude -r        run Claude Code and pick a session to resume
+#   claude-box                    shell, restricted network (allowlist proxy)
+#   claude-box claude             run Claude Code, restricted network
+#   claude-box claude -r          pick a Claude session to resume
+#   claude-box --open [command]   same, but with FULL internet access
 set -euo pipefail
 
 IMAGE="localhost/claude-box:dev"
+PROXY="claude-proxy"
+NETWORK="claude-internal"
+
+# --open must be the first argument
+MODE="restricted"
+if [[ "${1:-}" == "--open" ]]; then MODE="open"; shift; fi
+
 PROJECT="$(pwd -P)"
 NAME="$(basename "$PROJECT")"
 
@@ -23,6 +31,40 @@ esac
 # Container names only allow letters, digits, underscore, dot and dash.
 SAFE_NAME="${NAME//[^a-zA-Z0-9_.-]/_}"
 
+NET_ARGS=()
+if [[ "$MODE" == "restricted" ]]; then
+  # The proxy must be running. Start it if it exists but is stopped.
+  STATE="$(podman inspect --format '{{.State.Status}}' "$PROXY" 2>/dev/null || true)"
+  if [[ -z "$STATE" ]]; then
+    echo "Proxy container '$PROXY' not found. Build and run it first (guide step 7)." >&2
+    exit 1
+  fi
+  if [[ "$STATE" != "running" ]]; then
+    echo "Starting $PROXY ..." >&2
+    podman start "$PROXY" >/dev/null
+    sleep 1
+  fi
+
+  # The proxy's address on the internal network (looked up on every launch)
+  PROXY_IP="$(podman inspect --format '{{(index .NetworkSettings.Networks "claude-internal").IPAddress}}' "$PROXY")"
+  if [[ -z "$PROXY_IP" ]]; then
+    echo "Could not find $PROXY's address on $NETWORK." >&2
+    exit 1
+  fi
+  PROXY_URL="http://${PROXY_IP}:3128"
+
+  NET_ARGS=(
+    --network "$NETWORK"
+    --dns 127.0.0.1
+    -e "HTTPS_PROXY=$PROXY_URL"
+    -e "https_proxy=$PROXY_URL"
+    -e CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+    -e ENABLE_CLAUDEAI_MCP_SERVERS=false
+  )
+else
+  echo "WARNING: OPEN MODE. This container has full internet access." >&2
+fi
+
 exec podman run --rm -it \
   --name "claude-box-${SAFE_NAME}-$$" \
   --userns=keep-id:uid=1000,gid=1000 \
@@ -31,7 +73,11 @@ exec podman run --rm -it \
   --pids-limit=512 \
   --memory=4g \
   --tmpfs /tmp:rw,size=512m \
+  --read-only \
+  --tmpfs /home/claude:rw,mode=1777,size=256m \
   -e TERM \
+  -e "CLAUDE_BOX_MODE=$MODE" \
+  "${NET_ARGS[@]}" \
   -v claude-state:/home/claude/.claude \
   -v "$PROJECT":"/workspace/$NAME" \
   --workdir "/workspace/$NAME" \
