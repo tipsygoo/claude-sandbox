@@ -12,3 +12,5 @@ don't move on until every box is ticked.
 | [5](05-login.md) | Log in and test isolation |
 | [6](06-internal-network.md) | Restrict outbound network access |
 | [7](07-allowlist-proxy.md) | Build the allowlist proxy |
+| [8](08-launcher-network.md) | Switch the launcher to the proxy, add open mode, close DNS leak |
+| [9](09-hardening.md) | Further hardening: managed settings and read-only filesystem |
