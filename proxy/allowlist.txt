@@ -8,5 +8,5 @@ platform.claude.com
 claude.ai
 
 # Documentation sites (uncomment or add the ones you use)
-docs.python.org
+# docs.python.org
 # docs.podman.io
