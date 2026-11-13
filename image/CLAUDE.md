@@ -2,7 +2,7 @@
 
 ## Where you are
 - You run inside a rootless Podman container called "claude-box". The only project files you can see are in /workspace/<project>.
-- Anything outside the project folder and ~/.claude is temporary. The home folder (~) and /tmp are wiped when the session ends.
+- Only the project folder and ~/.claude are permanent. Everything else in the home folder (~) and /tmp is wiped when the session ends.
 - System files are read-only, and you are not root. You cannot install system packages. For Python, create a virtual environment inside the project (python3 -m venv .venv).
 
 ## Network
