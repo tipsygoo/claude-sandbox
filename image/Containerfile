@@ -26,6 +26,7 @@ RUN (userdel -r ubuntu 2>/dev/null || true) \
 # Managed settings: a root-owned policy file the claude user cannot change.
 # On Linux, Claude Code reads it from /etc/claude-code/managed-settings.json
 COPY managed-settings.json /etc/claude-code/managed-settings.json
+COPY CLAUDE.md /etc/claude-code/CLAUDE.md
 
 ENV CLAUDE_CONFIG_DIR=/home/claude/.claude \
     DISABLE_AUTOUPDATER=1

@@ -1,0 +1,1 @@
+# A global CLAUDE.md for every container

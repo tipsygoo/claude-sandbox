@@ -14,3 +14,4 @@ don't move on until every box is ticked.
 | [7](07-allowlist-proxy.md) | Build the allowlist proxy |
 | [8](08-launcher-network.md) | Switch the launcher to the proxy, add open mode, close DNS leak |
 | [9](09-hardening.md) | Further hardening: managed settings and read-only filesystem |
+| [10](10-global-claude-md.md) | Global CLAUDE.md rules for every container |
