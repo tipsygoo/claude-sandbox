@@ -1,17 +1,64 @@
 # claude-sandbox
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Podman 4.9+](https://img.shields.io/badge/Podman-4.9%2B-892CA0?logo=podman&logoColor=white)
+![Ubuntu 24.04 tested](https://img.shields.io/badge/Ubuntu-24.04%20tested-E95420?logo=ubuntu&logoColor=white)
+![Runs Claude Code](https://img.shields.io/badge/runs-Claude%20Code-D97757?logo=claude&logoColor=white)
+
 A rootless Podman setup for running Claude Code on your own computer. Claude sees only the project folder you start it from, and its internet access goes through an allowlist proxy that you control.
 
-## What it is
+**Status:** a personal project that I use myself, with best-effort support. Tested with Claude Code 2.1.311 on Ubuntu 24.04 (Podman 4.9). Issues are welcome.
 
-Claude Code can edit files and run commands. That is what makes it useful, and it is also what makes mistakes and tricked instructions (for example, from a malicious web page or repository) costly. This project runs Claude Code inside a container with several independent layers of protection, so a single failure does not give it your whole computer.
+[Quick start](#quick-start) · [What it protects against, and what it doesn't](#what-it-protects-against-and-what-it-doesnt) · [Step-by-step guide](docs/README.md)
 
-You start it with one command from any project folder:
+## Why this exists
+
+AI coding agents can edit files and run commands for you, which is what makes them useful. It also means that anything able to steer the agent can act as you. The realistic scenario is **prompt injection**: instructions hidden in a repository, a README, a web page, or a tool's output that the agent reads and follows as if you had written them.
+
+An agent running directly on your computer can reach everything your user can: SSH keys, cloud credentials, browser data, every other project. Unless you restrict it, it can also send any of that to any website. Permission prompts help, but they are one layer, and they depend on you catching every risky request. This project adds layers that don't.
+
+`claude-sandbox` runs Claude Code inside a rootless Podman container. You start it with one command from any project folder:
 
 ```bash
 cd ~/path/to/project
 claude-box claude
 ```
+
+## Compared with running Claude Code directly
+
+| | Claude Code run directly (default settings) | claude-sandbox |
+|---|---|---|
+| Files Claude can reach | Everything your user can read and write: home folder, SSH keys, other projects | Only the project folder you start it from, plus its own `~/.claude` volume |
+| Network | Whatever your computer can reach | Only the sites on your allowlist (restricted mode) |
+| Runs as | Your user | An unprivileged user inside a rootless container |
+| Permission prompts | Yes | Yes, with bypass mode locked off |
+
+Claude Code also has optional built-in sandbox settings. This project is a separate approach: a container boundary that you can inspect and test yourself, and that does not depend on Claude Code's own settings being right.
+
+## What it protects against, and what it doesn't
+
+### Protects against
+
+| What could go wrong | What stops it here |
+|---|---|
+| Claude reading files outside the project, such as SSH keys or other projects | Only the project folder is shared with the container |
+| Data being sent to a site you didn't approve | An internal network with no route out, plus an allowlist proxy (name lookups are closed off too) |
+| A container escape landing as root on your computer | Rootless Podman, no extra privileges |
+| A runaway program freezing your machine | Process and memory limits |
+| Reading secret files such as `.env`, or switching permission prompts off | Managed Claude settings baked into the image |
+| Changing system files inside the container | A read-only filesystem |
+
+[Step 9](docs/09-hardening.md) has a summary table with where each protection is defined.
+
+### Does not protect against
+
+- **Prompt injection itself.** Claude can still be tricked. The layers above limit how much damage that can do.
+- **Everything inside the project folder.** Claude can read and change every file in the project you start it from, so use version control.
+- **Allowlisted sites can still carry data out.** A site that accepts uploads (GitHub, paste sites, cloud storage) is a possible way out, so list only what you need.
+- **Your login token is inside the container.** Anything running in a `claude-box` container can read it, so only run Claude on projects you trust.
+- **Open mode removes the network protection** for as long as you use it.
+- **`CLAUDE.md` is guidance, not enforcement.** The hard limits are the settings, the network and the filesystem.
+- **No sandbox is perfect.** A flaw in the container runtime or the kernel could still be exploited, which is one reason the container runs rootless.
 
 ## How it works
 
@@ -36,19 +83,6 @@ flowchart LR
 - **`claude-box`** is the container where Claude Code runs. It starts from the image built from `image/Containerfile`.
 - **`claude-proxy`** is a separate container (Squid). It is the only door out to the internet, and it opens only for the sites on the allowlist.
 - The launcher script `bin/claude-box` ties it together: it mounts your project, picks the network, and applies the safety options.
-
-## What is protected
-
-| Protection | What it stops |
-|---|---|
-| Rootless Podman | A container escape landing as root on your computer |
-| Only the project folder is shared | Claude seeing the rest of your computer |
-| No extra privileges, process and memory limits | Programs gaining special powers or freezing your machine |
-| Internal network plus allowlist proxy | Data leaving to sites you didn't approve |
-| Managed Claude settings | Reading secret files such as `.env`; switching permission prompts off |
-| Read-only filesystem | Changing system files inside the container |
-
-The guide explains each one: see [Step 9](docs/09-hardening.md) for a summary table.
 
 ## Requirements
 
@@ -178,15 +212,7 @@ podman volume import claude-state ~/backups/claude-state-YYYY-MM-DD.tar
 
 ## The step-by-step guide
 
-The [guide](docs/README.md) walks you through the setup in order: install Podman, get the repo, build the image, install the launcher, log in, isolate the network, build the proxy, switch to restricted mode, review the hardening, review the global `CLAUDE.md`, and keep it all maintained and backed up.
-
-## What this does not protect against
-
-- **Allowlisted sites can still carry data out.** A site that accepts uploads (GitHub, paste sites, cloud storage) is a possible way out, so list only what you need.
-- **Your login token is inside the container.** Anything running in a `claude-box` container can read it, so only run Claude on projects you trust.
-- **Open mode removes the network protection** for as long as you use it.
-- **`CLAUDE.md` is guidance, not enforcement.** The hard limits are the settings, the network and the filesystem.
-- **No sandbox is perfect.** A flaw in the container runtime or the kernel could still be exploited, which is one reason the container runs rootless.
+The [guide](docs/README.md) walks you through the setup in order: install Podman, get the repo, build the image, install the launcher, log in, isolate the network, build the proxy, switch to restricted mode, review the hardening, review the global `CLAUDE.md`, and keep it all maintained and backed up. Each step ends with a "Done when" checklist.
 
 ## What is not in this repo
 
@@ -195,3 +221,7 @@ Logins, API keys, tokens, `.env` files, your personal allowlist (`proxy/allowlis
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Disclaimer
+
+This is an independent project. It is not affiliated with, endorsed by, or supported by Anthropic. Claude and Claude Code are products of Anthropic.
