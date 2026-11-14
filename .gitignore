@@ -9,3 +9,6 @@
 .idea/
 *.swp
 .DS_Store
+
+# Personal proxy allowlist additions
+proxy/allowlist.local.txt
