@@ -7,6 +7,4 @@ api.anthropic.com
 platform.claude.com
 claude.ai
 
-# Documentation sites (uncomment or add the ones you use)
-# docs.python.org
-# docs.podman.io
+# Your own sites: add them to proxy/allowlist.local.txt (ignored by git)
