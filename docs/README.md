@@ -1,7 +1,6 @@
 # Setup guide
 
-Follow the steps in order. Each step ends with a "Done when" checklist;
-don't move on until every box is ticked.
+Follow the steps in order
 
 | Step | Topic | 
 |------|-------|
