@@ -67,9 +67,7 @@ The container image brings its own Ubuntu 26.04 base, Claude Code, git, ripgrep,
 
 ## Quick start
 
-This is the short version
-
-Read the [step-by-step guide](docs/README.md) once, because it explains every command and how to check each step.
+This is the short version. Read the [step-by-step guide](docs/README.md) once, because it explains every command and how to check each step.
 
 ```bash
 # 1. Install the requirements, then get the repo
@@ -146,11 +144,14 @@ The proxy reads two lists. `proxy/allowlist.txt` comes with the repo and holds t
 |---|---|---|
 | Back up `claude-state` | Before reinstalling your OS, and now and then | See "Back up your sessions" below |
 | Update Claude Code | When a new release is out | Check the version, then rebuild: [Step 3](docs/03-build-image.md) |
+| Update this repo | When you want fixes | `git pull`, then rebuild the image if `image/` changed, and the proxy if `proxy/` changed |
 | Free disk space | Occasionally | `podman image prune` removes old, untagged images |
 | See what exists | Any time | `podman ps -a`, `podman images`, `podman volume ls` |
 | Review the proxy log | Now and then | `podman exec claude-proxy tail -n 50 /var/log/squid/access.log` |
 
 ### Back up your sessions
+
+Full details, including encryption, a safe restore test, and what never to prune, are in [Step 11](docs/11-maintenance.md).
 
 Your session history (what `claude -r` lists), your login, and your personal `CLAUDE.md` all live in the `claude-state` volume, so backing it up is how you keep them across a reinstall or a new computer.
 
@@ -169,6 +170,7 @@ podman volume import claude-state ~/backups/claude-state-YYYY-MM-DD.tar
 ```
 
 - **Keep the backup private.** It contains your login token. Never commit it or share it.
+- **Also copy `proxy/allowlist.local.txt`** to a safe place. It holds your own allowed sites, and git ignores it.
 - **To see your old sessions again**, keep each project's folder name the same. Claude files sessions by folder path, and the launcher mounts every project at `/workspace/<folder name>`.
 - **Try a restore once** before you rely on it, into a test volume (for example `claude-state-test`), and check it with a one-off container.
 
@@ -176,7 +178,7 @@ podman volume import claude-state ~/backups/claude-state-YYYY-MM-DD.tar
 
 ## The step-by-step guide
 
-The [guide](docs/README.md) walks you through the setup in order: install Podman, get the repo, build the image, install the launcher, log in, isolate the network, build the proxy, switch to restricted mode, review the hardening, and review the global `CLAUDE.md`. Each step ends with a "Done when" checklist.
+The [guide](docs/README.md) walks you through the setup in order: install Podman, get the repo, build the image, install the launcher, log in, isolate the network, build the proxy, switch to restricted mode, review the hardening, review the global `CLAUDE.md`, and keep it all maintained and backed up.
 
 ## What this does not protect against
 

@@ -14,3 +14,4 @@ Follow the steps in order
 | [8](08-restricted-mode.md) | Switch to restricted mode and test it |
 | [9](09-hardening.md) | Review the hardening |
 | [10](10-global-claude-md.md) | Review the global CLAUDE.md |
+| [11](11-maintenance.md) | Maintenance and backups
