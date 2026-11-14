@@ -2,7 +2,7 @@
 
 ## Description
 
-Build and run a small proxy container that forwards HTTPS traffic **only** to the websites listed in a file you control. You test it with one-off commands. The launcher is connected to it in Step 8.
+Build and run a small proxy container that forwards HTTPS traffic **only** to the websites listed in two files you control. You test it with one-off commands. The launcher is connected to it in Step 8.
 
 ## How the pieces fit
 
@@ -17,6 +17,20 @@ flowchart LR
 - Keeping them separate means the agent cannot change the allowlist, and you can edit the allowlist and restart the proxy without touching the agent.
 - The proxy software is Squid, a long-established proxy. With caching turned off and a short allowlist it typically needs only tens of megabytes of memory, so it adds very little to your computer or server.
 - Claude Code speaks the standard HTTP proxy protocol (the `HTTPS_PROXY` variable). It does not support SOCKS proxies.
+
+### Two allowlist files
+
+The proxy reads two lists and allows a site if it is in either one:
+
+```mermaid
+flowchart LR
+    A["proxy/allowlist.txt<br/>defaults, tracked by git"] --> S["Squid: allowed_domains"]
+    B["proxy/allowlist.local.txt<br/>your own sites, ignored by git"] --> S
+    S --> R["A site is allowed if it is in either file"]
+```
+
+- `proxy/allowlist.txt` comes with the repo and holds the defaults every user needs (the Claude Code hosts). You normally never edit it.
+- `proxy/allowlist.local.txt` is **yours**. You create it in 7.3, and git ignores it, so your own sites stay private and `git pull` never conflicts with them.
 
 ## Before you start
 
@@ -42,61 +56,20 @@ podman network ls
 
 The files are already in your clone, in the `proxy/` folder. You don't type anything in this section.
 
-### The allowlist: `proxy/allowlist.txt`
+### The default allowlist: `proxy/allowlist.txt`
 
 ```bash
 cd ~/claude-sandbox
 cat proxy/allowlist.txt
 ```
 
-It should look like this:
-
-```text
-# Domains the agent may reach over HTTPS. One per line.
-# "example.com" matches only that name.
-# ".example.com" (leading dot) matches example.com AND all its subdomains.
-
-# Claude Code essentials
-api.anthropic.com
-platform.claude.com
-claude.ai
-
-# Documentation sites (uncomment or add the ones you use)
-# docs.python.org
-# docs.podman.io
-```
-
-This is the file **you** edit. Lines starting with `#` are comments and are ignored.
+Lines starting with `#` are comments and are ignored. Your own file, `proxy/allowlist.local.txt`, is not in the clone, because git ignores it. You create it in 7.3.
 
 ### The proxy rules: `proxy/squid.conf`
 
-```text
-http_port 3128
-visible_hostname claude-proxy
-
-# Which domains are allowed (read from the allowlist file)
-acl allowed_domains dstdomain "/etc/squid/allowlist.txt"
-
-# HTTPS tunnels are made with the CONNECT method, only on port 443
-acl SSL_ports port 443
-acl CONNECT method CONNECT
-
-# Rules are checked top to bottom; the first match wins
-http_access deny CONNECT !SSL_ports
-http_access allow CONNECT allowed_domains
-http_access deny all
-
-# No caching, logs in files we can read later
-cache deny all
-access_log stdio:/var/log/squid/access.log
-cache_log /var/log/squid/cache.log
-pid_filename none
-coredump_dir /tmp
-```
-
 | Line | Meaning |
 |---|---|
-| `acl allowed_domains dstdomain "..."` | Defines a group called `allowed_domains`, filled from the allowlist file |
+| `acl allowed_domains dstdomain "..."` (twice) | Defines a group called `allowed_domains`. Two lines with the same name are combined, so the group holds the sites from both files |
 | `acl SSL_ports port 443` | Defines the only port HTTPS tunnels may use |
 | `acl CONNECT method CONNECT` | Matches HTTPS tunnel requests |
 | `http_access deny CONNECT !SSL_ports` | Refuses tunnels to any port other than 443 |
@@ -108,9 +81,38 @@ coredump_dir /tmp
 
 It does five things: starts from the same Ubuntu image, installs Squid, copies in `squid.conf`, creates a log folder owned by the unprivileged `proxy` user, and starts Squid as that user (`squid -N` keeps it in the foreground, so the container keeps running).
 
-The allowlist is **not** baked into the image. It is mounted from your clone when the container starts, so you can edit it without rebuilding.
+The allowlists are **not** baked into the image. They are mounted from your clone when the container starts, so you can edit them without rebuilding.
 
-## 7.3 Build and run the proxy
+## 7.3 Create your local allowlist
+
+The proxy needs `proxy/allowlist.local.txt` to exist, because it is mounted into the container. Create it now:
+
+```bash
+cd ~/claude-sandbox
+
+# Create the file with a comment header, but only if it doesn't exist yet,
+# so running this again never overwrites your entries.
+# "[ -f FILE ] || command" means "run the command only if FILE doesn't exist".
+[ -f proxy/allowlist.local.txt ] || cat > proxy/allowlist.local.txt <<'EOF'
+# Your own allowed sites. This file is ignored by git.
+# One domain per line.
+# "example.com" matches only that name.
+# ".example.com" (leading dot) matches example.com AND all its subdomains.
+# After editing, run: podman restart claude-proxy
+
+# Examples (remove the "# " at the start of a line to allow that site):
+# docs.python.org
+# docs.podman.io
+EOF
+
+# Check that git ignores it.
+# Expected: a line showing .gitignore and the pattern proxy/allowlist.local.txt
+git check-ignore -v proxy/allowlist.local.txt
+```
+
+Everything in the file is a comment for now, so nothing extra is allowed yet.
+
+## 7.4 Build and run the proxy
 
 ```bash
 cd ~/claude-sandbox
@@ -122,13 +124,14 @@ podman build -t claude-proxy:dev proxy/
 #   --name claude-proxy                 the name other containers use to find it
 #   --network (twice)                   the inner side and the outer side
 #   --cap-drop=all, no-new-privileges   the same lockdown as the agent container
-#   -v ...:ro                           mount the allowlist from your clone, read-only
+#   -v ...:ro                           mount each allowlist from your clone, read-only
 podman run -d --name claude-proxy \
   --network claude-internal \
   --network claude-external \
   --cap-drop=all \
   --security-opt=no-new-privileges \
   -v "$HOME/claude-sandbox/proxy/allowlist.txt":/etc/squid/allowlist.txt:ro \
+  -v "$HOME/claude-sandbox/proxy/allowlist.local.txt":/etc/squid/allowlist.local.txt:ro \
   claude-proxy:dev
 
 # Check that it is running. Expected: claude-proxy with a status of "Up ..."
@@ -140,7 +143,7 @@ podman logs claude-proxy
 
 If you run these again later, remove the old container first with `podman rm -f claude-proxy`, because the name is already taken.
 
-## 7.4 Test it from an agent-style container
+## 7.5 Test it from an agent-style container
 
 Run each test from a one-off container on the **internal** network, which has no direct route out:
 
@@ -155,7 +158,7 @@ podman run --rm --network claude-internal claude-box:dev \
 `api.anthropic.com` is an API, not a website, so a `404` for its front page is normal. Any real status proves the tunnel worked.
 
 ```bash
-# TEST 2: a domain that is NOT on the list, through the proxy.
+# TEST 2: a domain that is NOT on either list, through the proxy.
 # Expected: an error like "CONNECT tunnel failed, response 403"
 podman run --rm --network claude-internal claude-box:dev \
   curl -sS -m 20 -x http://claude-proxy:3128 -o /dev/null -w '%{http_code}\n' https://example.com
@@ -192,28 +195,42 @@ podman exec claude-proxy tail -n 5 /var/log/squid/access.log
 
 Long durations, around 300000 ms (5 minutes), are normal. Claude keeps its connections open for a while.
 
-## 7.5 Allow a new site
+## 7.6 Allow a new site
+
+Add sites to your **local** file, never to the default one:
 
 ```bash
-# 1. Add the domain to the allowlist file.
-echo "docs.python.org" >> ~/claude-sandbox/proxy/allowlist.txt
+# 1. Add the domain to your local allowlist.
+echo "docs.python.org" >> ~/claude-sandbox/proxy/allowlist.local.txt
 
-# 2. Restart the proxy so it re-reads the file.
+# 2. Restart the proxy so it re-reads the files.
 podman restart claude-proxy
 
 # 3. Test it. Expected: a 200, or a redirect code such as 301.
 podman run --rm --network claude-internal claude-box:dev \
   curl -sS -m 20 -x http://claude-proxy:3128 -o /dev/null -w '%{http_code}\n' https://docs.python.org
+
+# 4. Git does not see the change, because the local file is ignored.
+# Expected: proxy/allowlist.local.txt is not listed.
+cd ~/claude-sandbox && git status --short
 ```
 
-If you don't want to keep that entry, delete the line from the file and restart the proxy again. Because you edited a file that comes from the repository, `git status` will list it as modified. That is normal (Step 2 explains what to do if `git pull` complains).
+If you don't want to keep that entry, delete its line from the local file and restart the proxy again:
+
+```bash
+sed -i '/^docs.python.org$/d' ~/claude-sandbox/proxy/allowlist.local.txt
+podman restart claude-proxy
+```
+
+Always restart the container after editing. A file mounted into a container on its own can keep pointing at the old version if an editor replaces the file instead of changing it in place, and a restart mounts the current file again.
 
 ## What needs what
 
 | You change | You need to |
 |---|---|
-| `proxy/allowlist.txt` | `podman restart claude-proxy` |
-| `proxy/squid.conf` or `proxy/Containerfile` | Rebuild the image, then re-create the container: `podman build -t claude-proxy:dev proxy/`, `podman rm -f claude-proxy`, and the `podman run` from 7.3 |
+| `proxy/allowlist.local.txt` (your own sites) | `podman restart claude-proxy` |
+| `proxy/allowlist.txt` (the defaults, which `git pull` may update) | `podman restart claude-proxy` |
+| `proxy/squid.conf` or `proxy/Containerfile` (for example after `git pull` changes them) | Rebuild the image, then re-create the container: `podman build -t claude-proxy:dev proxy/`, `podman rm -f claude-proxy`, and the `podman run` from 7.4 |
 
 ## After a reboot
 
@@ -235,9 +252,11 @@ Don't run the long `podman run` again, because the name is already taken. Your i
 
 | Symptom | Fix |
 |---|---|
+| `podman run` fails with a mount error mentioning `allowlist.local.txt` | The file doesn't exist. Repeat 7.3 |
 | `podman logs claude-proxy` shows a `FATAL` line | Copy the exact line. Squid is strict about configuration and file permissions |
 | TEST 1 says `Could not resolve proxy: claude-proxy` | The name lookup between containers failed. Check that `podman ps` shows the proxy, and report the output of `podman inspect claude-proxy --format '{{.NetworkSettings.Networks}}'` |
-| TEST 1 fails with `403` | The domain isn't in the allowlist, or the proxy was started before you edited the file. Restart it |
+| TEST 1 fails with `403` | The domain isn't in either allowlist, or the proxy was started before you edited the file. Restart it |
+| A site in your local file is still blocked | Restart the proxy (`podman restart claude-proxy`) and check the spelling. Use `.example.com` to include subdomains |
 | The proxy can't reach the internet | Check that it is on `claude-external`, and run `podman exec claude-proxy getent hosts api.anthropic.com` |
-| "permission denied" for the allowlist in the logs | Run `chmod 644 ~/claude-sandbox/proxy/allowlist.txt` |
+| "permission denied" for an allowlist in the logs | Run `chmod 644 ~/claude-sandbox/proxy/allowlist.txt ~/claude-sandbox/proxy/allowlist.local.txt` |
 | `the container name "claude-proxy" is already in use` | It already exists. Use `podman start claude-proxy`, or remove it first with `podman rm -f claude-proxy` |

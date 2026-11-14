@@ -59,7 +59,7 @@ What each part is for:
 | `image/CLAUDE.md` | General instructions Claude reads at the start of every session | Step 10 |
 | `proxy/Containerfile` | The recipe for the proxy image, the only way out to the internet | Step 7 |
 | `proxy/squid.conf` | The proxy's rules | Step 7 |
-| `proxy/allowlist.txt` | The list of websites the proxy lets through. You edit this one | Step 7 |
+| `proxy/allowlist.txt` | The default list of websites the proxy lets through (the Claude hosts). Your own sites go in a separate file you create in Step 7 | Step 7 |
 | `docs/` | This guide | |
 
 ## 2.4 Check that all the pieces are present
@@ -114,7 +114,7 @@ git pull
 
 If the update changed anything in `image/` or `proxy/`, rebuild the matching image (the steps that build them explain how).
 
-If you have edited a file yourself, such as `proxy/allowlist.txt`, `git status` will list it as modified. That is normal. If `git pull` complains about your changes, send them to a safe place first with `git stash`, run `git pull`, then bring them back with `git stash pop`.
+If you have edited a file that comes with the repository, `git status` will list it as modified. That is normal. If `git pull` complains about your changes, send them to a safe place first with `git stash`, run `git pull`, then bring them back with `git stash pop`. Your own proxy allowlist additions are not a problem: they live in `proxy/allowlist.local.txt`, which git ignores (Step 7).
 
 ## Troubleshooting
 

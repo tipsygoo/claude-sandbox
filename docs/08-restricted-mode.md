@@ -137,7 +137,7 @@ exit
 
 ## 8.5 Getting current documentation
 
-In restricted mode, Claude can only fetch pages from allowlisted sites. For documentation you use regularly, add the domains to `proxy/allowlist.txt` and run `podman restart claude-proxy` (Step 7 shows how). For a one-off lookup on a site that isn't listed, use `claude-box --open`.
+In restricted mode, Claude can only fetch pages from allowlisted sites. For documentation you use regularly, add the domains to `proxy/allowlist.local.txt` and run `podman restart claude-proxy` (Step 7 shows how). For a one-off lookup on a site that isn't listed, use `claude-box --open`.
 
 Claude's own page fetching from inside the container is expected to follow the same allowlist. If a fetch fails on a documentation site, look for a `TCP_DENIED` line for that site in the proxy log.
 
@@ -160,7 +160,7 @@ Long connection durations, around `300000` (milliseconds, about 5 minutes), are 
 Remove the `-e ENABLE_CLAUDEAI_MCP_SERVERS=false` line from `bin/claude-box`, and allow the host instead:
 
 ```bash
-echo "mcp-proxy.anthropic.com" >> ~/claude-sandbox/proxy/allowlist.txt
+echo "mcp-proxy.anthropic.com" >> ~/claude-sandbox/proxy/allowlist.local.txt
 podman restart claude-proxy
 ```
 
@@ -172,7 +172,7 @@ podman restart claude-proxy
 
 | Symptom | Fix |
 |---|---|
-| `Proxy container 'claude-proxy' not found` | The proxy was never created or was removed. Repeat Step 7 (7.3) |
+| `Proxy container 'claude-proxy' not found` | The proxy was never created or was removed. Repeat Step 7 (7.4) |
 | `Could not find claude-proxy's address` | The proxy isn't attached to `claude-internal`. Check with `podman inspect claude-proxy --format '{{.NetworkSettings.Networks}}'` |
 | `getent hosts example.com` still prints an address | The DNS setting didn't take effect. Copy the output of `cat /etc/resolv.conf` from inside the container |
 | `curl` works but Claude Code fails to start or hangs | Look at the end of the proxy log for `TCP_DENIED` hosts, and copy those lines |
